@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wafra Square - Regulatory Compliance Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        :root {
+            --bg-dark: #0b1020;
+            --bg-dark-2: #111827;
+            --glass-dark: rgba(255,255,255,0.05);
+            --glass-border: rgba(255,255,255,0.10);
+            --text-dark: #e5e7eb;
+            --muted-dark: #94a3b8;
+            --bg-light: #f8fafc;
+            --card-light: rgba(255,255,255,0.88);
+            --border-light: rgba(226,232,240,0.9);
+            --text-light: #0f172a;
+            --muted-light: #64748b;
+        }
+
+        * { box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background:
+                radial-gradient(circle at top, rgba(37, 99, 235, 0.20), transparent 30%),
+                linear-gradient(180deg, #0b1020 0%, #0f172a 100%);
+            color: var(--text-dark);
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+            transition: background .3s ease, color .3s ease;
+        }
+
+        body.light-mode {
+            background:
+                radial-gradient(circle at top, rgba(37, 99, 235, 0.10), transparent 26%),
+                linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%);
+            color: var(--text-light);
+        }
+
+        .glass {
+            background: var(--glass-dark);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+            transition: all .3s ease;
+        }
+
+        body.light-mode .glass {
+            background: var(--card-light);
+            border-color: var(--border-light);
+            box-shadow: 0 18px 60px rgba(15,23,42,0.08);
+        }
+
+        .muted { color: var(--muted-dark); }
+        body.light-mode .muted { color: var(--muted-light); }
+
+        .input-ui {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.10);
+            color: #fff;
+            outline: none;
+            transition: all .2s ease;
+        }
+
+        .input-ui::placeholder { color: #64748b; }
+        .input-ui:focus { border-color: rgba(59,130,246,0.5); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+
+        body.light-mode .input-ui {
+            background: #fff;
+            border-color: #e2e8f0;
+            color: #0f172a;
+        }
+
+        body.light-mode .input-ui::placeholder { color: #94a3b8; }
+
+        select option {
+            background: #111827;
+            color: #f8fafc;
+        }
+
+        body.light-mode select option {
+            background: white;
+            color: #0f172a;
+        }
+
+        .fade-up { animation: fadeUp .28s ease-out; }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .status-pill {
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .card-bar {
+            height: 6px;
+            border-radius: 999px;
+            margin-bottom: 16px;
+        }
+
+        .mobile-safe-bottom {
+            padding-bottom: 110px;
+        }
+
+        @media (max-width: 768px) {
+            .mobile-safe-bottom {
+                padding-bottom: calc(110px + env(safe-area-inset-bottom));
+            }
+            .mobile-nav {
+                padding-bottom: calc(10px + env(safe-area-inset-bottom));
+            }
+        }
+
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-thumb { background: rgba(148,163,184,.25); border-radius: 999px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+    </style>
+</head>
+<body>
+    <div class="mobile-safe-bottom">
+        <main class="max-w-7xl mx-auto px-3 pb-24 pt-4 sm:px-4 md:px-6 md:pb-28 md:pt-6 lg:px-8">
+            <header class="mb-4 grid gap-4 lg:mb-6 lg:grid-cols-[1.25fr,0.75fr]">
+                <section class="glass rounded-[28px] p-4 sm:p-5 md:p-8">
+                    <div class="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                            <div class="mb-3 inline-flex items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-300">
+                                <i data-lucide="shield-check" class="w-4 h-4"></i>
+                                Offline local mode
+                            </div>
+                            <h1 class="text-3xl font-extrabold tracking-tight md:text-5xl">Regulatory Compliance Dashboard</h1>
+                            <p class="muted mt-3 max-w-2xl text-sm md:text-base">
+                                A modern compliance tracker for Wafra Square with search, filters, status logic, add/edit/delete, auto expiry calculation, local storage, and JSON backup/import.
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button id="themeToggle" class="input-ui rounded-2xl px-4 py-3 text-sm font-semibold">Light</button>
+                            <button onclick="openModal()" class="rounded-2xl bg-white px-4 py-3 text-sm font-bold text-slate-900 shadow-lg">
+                                <span class="inline-flex items-center gap-2">
+                                    <i data-lucide="plus" class="w-4 h-4 text-blue-600"></i>
+                                    Add New
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="statsGrid" class="mt-5 grid gap-3 sm:grid-cols-2 md:grid-cols-4"></div>
+                </section>
+
+                <section class="glass rounded-[28px] p-4 sm:p-5 md:p-8">
+                    <div class="mb-4 flex items-center justify-between">
+                        <div>
+                            <div class="muted text-xs font-semibold uppercase tracking-[0.22em]">Workspace</div>
+                            <div class="mt-2 text-xl font-bold">Quick actions</div>
+                        </div>
+                        <i data-lucide="activity" class="w-5 h-5 text-blue-400"></i>
+                    </div>
+
+                    <div class="space-y-3">
+                        <button onclick="document.getElementById('importFile').click()" class="input-ui flex w-full items-center justify-between rounded-2xl px-4 py-4 text-left">
+                            <span>
+                                <div class="font-semibold">Import backup</div>
+                                <div class="muted mt-1 text-sm">Load JSON data into local tracker</div>
+                            </span>
+                            <i data-lucide="upload" class="w-5 h-5 text-blue-400"></i>
+                        </button>
+
+                        <button onclick="exportData()" class="input-ui flex w-full items-center justify-between rounded-2xl px-4 py-4 text-left">
+                            <span>
+                                <div class="font-semibold">Export backup</div>
+                                <div class="muted mt-1 text-sm">Save current records as JSON</div>
+                            </span>
+                            <i data-lucide="download" class="w-5 h-5 text-blue-400"></i>
+                        </button>
+
+                        <div class="input-ui rounded-2xl px-4 py-4">
+                            <div class="font-semibold">Current date</div>
+                            <div id="currentDate" class="muted mt-1 text-sm"></div>
+                        </div>
+                    </div>
+                    <input type="file" id="importFile" class="hidden" accept=".json" onchange="handleImport(event)">
+                </section>
+            </header>
+
+            <section class="glass mb-4 rounded-[28px] p-3 sm:p-4 md:mb-6 md:p-5">
+                <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.5fr_repeat(4,0.7fr)_0.8fr]">
+                    <div class="input-ui flex items-center gap-3 rounded-2xl px-4 py-3">
+                        <i data-lucide="search" class="w-4 h-4 muted"></i>
+                        <input type="text" id="searchInput" placeholder="Search item..." oninput="renderApp()" class="w-full bg-transparent text-sm outline-none" />
+                    </div>
+
+                    <select id="filterSelect" onchange="renderApp()" class="input-ui rounded-2xl px-4 py-3 text-sm">
+                        <option value="All">All</option>
+                        <option value="Overdue">Overdue</option>
+                        <option value="Expiring">Expiring</option>
+                        <option value="Healthy">Healthy</option>
+                        <option value="Systemic">Systemic</option>
+                    </select>
+
+                    <select id="sortSelect" onchange="renderApp()" class="input-ui rounded-2xl px-4 py-3 text-sm">
+                        <option value="status">Sort: Status</option>
+                        <option value="expiry">Sort: Expiry date</option>
+                        <option value="lastService">Sort: Last service</option>
+                        <option value="name">Sort: Name</option>
+                    </select>
+
+                    <button onclick="resetFilters()" class="input-ui rounded-2xl px-4 py-3 text-sm font-semibold">Reset Filter</button>
+                    <button onclick="openModal()" class="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white">New Record</button>
+                </div>
+            </section>
+
+            <section id="itemsGrid" class="grid gap-4 md:grid-cols-2 xl:grid-cols-3"></section>
+        </main>
+
+        <button onclick="openModal()" class="fixed bottom-24 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-2xl md:bottom-8 md:right-8">
+            <i data-lucide="plus" class="w-6 h-6"></i>
+        </button>
+
+        <nav class="mobile-nav glass fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 px-2 py-2 sm:px-4 sm:py-3">
+            <div class="mx-auto grid max-w-7xl grid-cols-4 gap-2 sm:flex sm:items-center sm:justify-between sm:gap-3">
+                <button onclick="quickFilter('All')" id="quickAll" class="rounded-2xl px-2 py-3 text-[11px] font-semibold sm:px-4 sm:text-sm">All</button>
+                <button onclick="quickFilter('Overdue')" id="quickOverdue" class="rounded-2xl px-2 py-3 text-[11px] font-semibold sm:px-4 sm:text-sm">Overdue</button>
+                <button onclick="quickFilter('Expiring')" id="quickExpiring" class="rounded-2xl px-2 py-3 text-[11px] font-semibold sm:px-4 sm:text-sm">Expiring</button>
+                <button onclick="openModal()" class="rounded-2xl px-2 py-3 text-[11px] font-semibold text-blue-300 sm:px-4 sm:text-sm">Add</button>
+            </div>
+        </nav>
+    </div>
+
+    <div id="modal" class="fixed inset-0 z-[70] hidden items-end justify-center bg-black/55 p-0 md:items-center md:p-6">
+        <div class="glass w-full max-w-2xl rounded-t-[28px] border p-4 sm:p-5 md:rounded-[32px] md:p-8">
+            <div class="mb-6 flex items-center justify-between">
+                <div>
+                    <div id="modalLabel" class="muted text-xs font-semibold uppercase tracking-[0.22em]">New entry</div>
+                    <h2 id="modalTitle" class="mt-1 text-2xl font-extrabold">Create compliance item</h2>
+                </div>
+                <button onclick="closeModal()" class="input-ui rounded-2xl p-3"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <form id="regulationForm" class="space-y-5">
+                <input type="hidden" id="editId" />
+                <input type="hidden" id="editSn" />
+
+                <div>
+                    <label class="muted mb-2 block text-sm font-semibold">Item Name</label>
+                    <input required id="formItem" class="input-ui w-full rounded-2xl px-4 py-3" />
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="muted mb-2 block text-sm font-semibold">Frequency</label>
+                        <select id="formFrequency" onchange="calculateExpiry()" class="input-ui w-full rounded-2xl px-4 py-3">
+                            <option value="Annual">Annual</option>
+                            <option value="Semi Annual">Semi Annual</option>
+                            <option value="Quarterly">Quarterly</option>
+                            <option value="Monthly">Monthly</option>
+                            <option value="Weekly">Weekly</option>
+                            <option value="(Y/N)">(Y/N)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="muted mb-2 block text-sm font-semibold">Last Service Date</label>
+                        <input type="date" id="formLastService" onchange="calculateExpiry()" class="input-ui w-full rounded-2xl px-4 py-3" />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="muted mb-2 block text-sm font-semibold">Expiry Date</label>
+                    <input type="date" id="formExpiry" class="input-ui w-full rounded-2xl px-4 py-3" />
+                    <p class="mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-300">Auto-calculated based on frequency</p>
+                </div>
+
+                <div>
+                    <label class="muted mb-2 block text-sm font-semibold">Remarks</label>
+                    <textarea id="formRemarks" rows="4" class="input-ui w-full rounded-2xl px-4 py-3"></textarea>
+                </div>
+
+                <div class="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+                    <button type="button" onclick="closeModal()" class="input-ui rounded-2xl px-5 py-3 font-semibold">Cancel</button>
+                    <button type="submit" class="rounded-2xl bg-blue-600 px-5 py-3 font-bold text-white">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed left-1/2 top-5 z-[90] hidden -translate-x-1/2">
+        <div class="glass rounded-2xl border px-4 py-3 text-sm font-semibold" id="toastText"></div>
+    </div>
+
+    <script>
+        let items = JSON.parse(localStorage.getItem('wafra_regulatory_tracker_modern_v1') || '[]');
+        let darkMode = true;
+        const WARNING_DAYS = 30;
+
+        function syncTheme() {
+            document.body.classList.toggle('light-mode', !darkMode);
+            document.getElementById('themeToggle').textContent = darkMode ? 'Light' : 'Dark';
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastText').textContent = message;
+            toast.classList.remove('hidden');
+            clearTimeout(showToast._t);
+            showToast._t = setTimeout(() => toast.classList.add('hidden'), 2200);
+        }
+
+        function getDelay(date) {
+            if (!date || date === 'NA') return 'NA';
+            const d = new Date(date);
+            if (isNaN(d.getTime())) return 'NA';
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const exp = new Date(d);
+            exp.setHours(0,0,0,0);
+            return Math.ceil((today - exp) / (1000 * 60 * 60 * 24));
+        }
+
+        function formatDisplayDate(value) {
+            if (!value) return 'NA';
+            const d = new Date(value);
+            if (isNaN(d.getTime())) return 'NA';
+            return d.toLocaleDateString('en-GB');
+        }
+
+        function getStatusMeta(expiringDate) {
+            const delay = getDelay(expiringDate);
+            if (delay === 'NA') {
+                return { key: 'Systemic', label: 'Systemic', pill: 'bg-slate-500/10 text-slate-300 border-slate-400/20', bar: 'linear-gradient(90deg, rgba(148,163,184,.9), rgba(100,116,139,.9))' };
+            }
+            if (delay > 0) {
+                return { key: 'Overdue', label: `Overdue ${delay}d`, pill: 'bg-rose-500/10 text-rose-300 border-rose-400/20', bar: 'linear-gradient(90deg, #fb7185, #e11d48)' };
+            }
+            if (delay > -WARNING_DAYS) {
+                return { key: 'Expiring', label: `Expires in ${Math.abs(delay)}d`, pill: 'bg-amber-500/10 text-amber-300 border-amber-400/20', bar: 'linear-gradient(90deg, #fbbf24, #f97316)' };
+            }
+            return { key: 'Healthy', label: 'Healthy', pill: 'bg-emerald-500/10 text-emerald-300 border-emerald-400/20', bar: 'linear-gradient(90deg, #34d399, #059669)' };
+        }
+
+        function calculateExpiry() {
+            const lastService = document.getElementById('formLastService').value;
+            const frequency = document.getElementById('formFrequency').value;
+            const expiryInput = document.getElementById('formExpiry');
+            if (!lastService || frequency === '(Y/N)') return;
+            const date = new Date(lastService);
+            switch (frequency) {
+                case 'Annual': date.setFullYear(date.getFullYear() + 1); break;
+                case 'Semi Annual': date.setMonth(date.getMonth() + 6); break;
+                case 'Quarterly': date.setMonth(date.getMonth() + 3); break;
+                case 'Monthly': date.setMonth(date.getMonth() + 1); break;
+                case 'Weekly': date.setDate(date.getDate() + 7); break;
+            }
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            expiryInput.value = `${year}-${month}-${day}`;
+        }
+
+        function saveLocal() {
+            localStorage.setItem('wafra_regulatory_tracker_modern_v1', JSON.stringify(items));
+            renderApp();
+        }
+
+        function renderStat(title, value, icon, colorClass) {
+            return `
+                <div class="glass rounded-3xl p-5">
+                    <div class="mb-5 flex items-center justify-between">
+                        <div class="rounded-2xl p-3 ${darkMode ? 'bg-white/5' : 'bg-slate-50'} ${colorClass}">
+                            <i data-lucide="${icon}" class="w-5 h-5"></i>
+                        </div>
+                        <span class="muted text-[11px] font-semibold uppercase tracking-[0.18em]">Live</span>
+                    </div>
+                    <div class="text-3xl font-extrabold tracking-tight ${colorClass}">${value}</div>
+                    <div class="muted mt-1 text-sm">${title}</div>
+                </div>
+            `;
+        }
+
+        function renderApp() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const filter = document.getElementById('filterSelect').value;
+            const sortBy = document.getElementById('sortSelect').value;
+
+            let filtered = [...items].filter(i => (i.item || '').toLowerCase().includes(search));
+            filtered = filtered.filter(i => filter === 'All' ? true : getStatusMeta(i.expiringDate).key === filter);
+
+            filtered.sort((a, b) => {
+                if (sortBy === 'name') return (a.item || '').localeCompare(b.item || '');
+                if (sortBy === 'lastService') return new Date(b.lastServiceDate || 0) - new Date(a.lastServiceDate || 0);
+                if (sortBy === 'expiry') return new Date(a.expiringDate || '9999-12-31') - new Date(b.expiringDate || '9999-12-31');
+                const order = { Overdue: 1, Expiring: 2, Healthy: 3, Systemic: 4 };
+                return order[getStatusMeta(a.expiringDate).key] - order[getStatusMeta(b.expiringDate).key];
+            });
+
+            const stats = {
+                total: items.length,
+                overdue: items.filter(i => getStatusMeta(i.expiringDate).key === 'Overdue').length,
+                expiring: items.filter(i => getStatusMeta(i.expiringDate).key === 'Expiring').length,
+                healthy: items.filter(i => getStatusMeta(i.expiringDate).key === 'Healthy').length
+            };
+
+            document.getElementById('statsGrid').innerHTML = `
+                ${renderStat('Total Items', stats.total, 'layers', darkMode ? 'text-slate-100' : 'text-slate-900')}
+                ${renderStat('Overdue', stats.overdue, 'alert-triangle', 'text-rose-400')}
+                ${renderStat('Expiring (30d)', stats.expiring, 'clock-3', 'text-amber-400')}
+                ${renderStat('Healthy', stats.healthy, 'badge-check', 'text-emerald-400')}
+            `;
+
+            const grid = document.getElementById('itemsGrid');
+            if (!filtered.length) {
+                grid.innerHTML = `
+                    <div class="glass col-span-full rounded-[28px] p-12 text-center">
+                        <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-white/5"><i data-lucide="search" class="w-6 h-6 muted"></i></div>
+                        <div class="text-xl font-bold">No records found</div>
+                        <p class="muted mt-2 text-sm">Try a different search or add a new compliance item.</p>
+                    </div>
+                `;
+                updateQuickButtons(filter);
+                lucide.createIcons();
+                return;
+            }
+
+            grid.innerHTML = filtered.map(item => {
+                const status = getStatusMeta(item.expiringDate);
+                return `
+                    <div class="glass fade-up rounded-[26px] p-5">
+                        <div class="card-bar" style="background:${status.bar}"></div>
+                        <div class="mb-4 flex items-start justify-between gap-3">
+                            <div>
+                                <div class="muted mb-2 text-[11px] font-bold uppercase tracking-[0.22em]">#${item.sn || 0}</div>
+                                <h3 class="text-lg font-bold leading-snug">${item.item || ''}</h3>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <button onclick="editItem('${item.id}')" class="rounded-xl p-2 text-blue-400 hover:bg-blue-500/10"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                                <button onclick="deleteItem('${item.id}')" class="rounded-xl p-2 text-rose-400 hover:bg-rose-500/10"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                            </div>
+                        </div>
+                        <div class="mb-4 flex flex-wrap items-center gap-2">
+                            <span class="status-pill ${status.pill}">${status.label}</span>
+                            <span class="status-pill ${darkMode ? 'bg-white/5 text-slate-300 border-white/10' : 'bg-slate-100 text-slate-700 border-slate-200'}">${item.frequency || 'NA'}</span>
+                        </div>
+                        <div class="space-y-3 rounded-2xl border border-white/10 bg-black/10 p-4 text-sm">
+                            <div class="flex items-center justify-between gap-3"><span class="muted">Last Service</span><span class="font-semibold">${formatDisplayDate(item.lastServiceDate)}</span></div>
+                            <div class="flex items-center justify-between gap-3"><span class="muted">Expiry</span><span class="font-semibold">${formatDisplayDate(item.expiringDate)}</span></div>
+                            <div class="flex items-center justify-between gap-3"><span class="muted">Frequency</span><span class="font-semibold">${item.frequency || 'NA'}</span></div>
+                        </div>
+                        <div class="mt-4 rounded-2xl ${darkMode ? 'bg-white/5' : 'bg-slate-50'} p-4">
+                            <div class="muted mb-2 text-[11px] font-bold uppercase tracking-[0.18em]">Remarks</div>
+                            <p class="muted text-sm">${item.remarks || 'No remarks provided'}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            updateQuickButtons(filter);
+            lucide.createIcons();
+        }
+
+        function updateQuickButtons(filter) {
+            const map = {
+                quickAll: ['All', 'bg-blue-500/10 text-blue-300'],
+                quickOverdue: ['Overdue', 'bg-rose-500/10 text-rose-300'],
+                quickExpiring: ['Expiring', 'bg-amber-500/10 text-amber-300']
+            };
+            Object.keys(map).forEach(id => {
+                const el = document.getElementById(id);
+                el.className = 'rounded-2xl px-2 py-3 text-[11px] font-semibold sm:px-4 sm:text-sm muted';
+            });
+            if (filter === 'All') document.getElementById('quickAll').className = 'rounded-2xl px-2 py-3 text-[11px] font-semibold sm:px-4 sm:text-sm bg-blue-500/10 text-blue-300';
+            if (filter === 'Overdue') document.getElementById('quickOverdue').className = 'rounded-2xl px-2 py-3 text-[11px] font-semibold sm:px-4 sm:text-sm bg-rose-500/10 text-rose-300';
+            if (filter === 'Expiring') document.getElementById('quickExpiring').className = 'rounded-2xl px-2 py-3 text-[11px] font-semibold sm:px-4 sm:text-sm bg-amber-500/10 text-amber-300';
+        }
+
+        function resetFilters() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('filterSelect').value = 'All';
+            document.getElementById('sortSelect').value = 'status';
+            renderApp();
+        }
+
+        function quickFilter(filter) {
+            document.getElementById('filterSelect').value = filter;
+            renderApp();
+        }
+
+        function openModal() {
+            document.getElementById('regulationForm').reset();
+            document.getElementById('editId').value = '';
+            document.getElementById('editSn').value = '';
+            document.getElementById('modalLabel').textContent = 'New entry';
+            document.getElementById('modalTitle').textContent = 'Create compliance item';
+            document.getElementById('modal').classList.remove('hidden');
+            document.getElementById('modal').classList.add('flex');
+            lucide.createIcons();
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.add('hidden');
+            document.getElementById('modal').classList.remove('flex');
+        }
+
+        function editItem(id) {
+            const item = items.find(i => i.id === id);
+            if (!item) return;
+            document.getElementById('editId').value = item.id || '';
+            document.getElementById('editSn').value = item.sn || '';
+            document.getElementById('formItem').value = item.item || '';
+            document.getElementById('formFrequency').value = item.frequency || 'Annual';
+            document.getElementById('formLastService').value = item.lastServiceDate || '';
+            document.getElementById('formExpiry').value = item.expiringDate || '';
+            document.getElementById('formRemarks').value = item.remarks || '';
+            document.getElementById('modalLabel').textContent = 'Edit record';
+            document.getElementById('modalTitle').textContent = 'Update compliance item';
+            document.getElementById('modal').classList.remove('hidden');
+            document.getElementById('modal').classList.add('flex');
+            lucide.createIcons();
+        }
+
+        function deleteItem(id) {
+            if (!confirm('Delete this record?')) return;
+            items = items.filter(i => i.id !== id);
+            saveLocal();
+            showToast('Record deleted');
+        }
+
+        document.getElementById('regulationForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const id = document.getElementById('editId').value;
+            const payload = {
+                item: document.getElementById('formItem').value,
+                frequency: document.getElementById('formFrequency').value,
+                lastServiceDate: document.getElementById('formLastService').value,
+                expiringDate: document.getElementById('formExpiry').value,
+                remarks: document.getElementById('formRemarks').value
+            };
+
+            if (id) {
+                const idx = items.findIndex(i => i.id === id);
+                if (idx !== -1) items[idx] = { ...items[idx], ...payload };
+                showToast('Record updated');
+            } else {
+                const nextSn = items.length > 0 ? Math.max(...items.map(i => Number(i.sn) || 0)) + 1 : 1;
+                items.push({ ...payload, sn: nextSn, id: Date.now().toString() });
+                showToast('Record added');
+            }
+
+            saveLocal();
+            closeModal();
+        });
+
+        function exportData() {
+            const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Wafra_Backup_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Backup exported');
+        }
+
+        function handleImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (!Array.isArray(imported)) throw new Error('Invalid');
+                    items = imported;
+                    saveLocal();
+                    showToast('Backup imported');
+                } catch (err) {
+                    showToast('Invalid JSON file');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            darkMode = !darkMode;
+            syncTheme();
+            renderApp();
+        });
+
+        window.onload = () => {
+            document.getElementById('currentDate').textContent = new Date().toLocaleDateString('en-GB', { dateStyle: 'medium' });
+            syncTheme();
+            renderApp();
+            lucide.createIcons();
+        };
+    </script>
+</body>
+</html>
