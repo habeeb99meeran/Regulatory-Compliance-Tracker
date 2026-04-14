@@ -12,12 +12,10 @@
 
         :root {
             --bg-dark: #0b1020;
-            --bg-dark-2: #111827;
             --glass-dark: rgba(255,255,255,0.05);
             --glass-border: rgba(255,255,255,0.10);
             --text-dark: #e5e7eb;
             --muted-dark: #94a3b8;
-            --bg-light: #f8fafc;
             --card-light: rgba(255,255,255,0.88);
             --border-light: rgba(226,232,240,0.9);
             --text-light: #0f172a;
@@ -137,7 +135,41 @@
     </style>
 </head>
 <body>
-    <div class="mobile-safe-bottom">
+    <section id="authScreen" class="min-h-screen px-4 py-8 flex items-center justify-center">
+        <div class="glass w-full max-w-md rounded-[32px] p-6 sm:p-8">
+            <div class="mb-6">
+                <div class="mb-3 inline-flex items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-300">
+                    <i data-lucide="lock" class="w-4 h-4"></i>
+                    Secure access only
+                </div>
+                <h1 class="text-3xl font-extrabold tracking-tight">Compliance Dashboard Login</h1>
+                <p class="muted mt-3 text-sm">Sign in with an approved account to view and manage compliance records.</p>
+            </div>
+
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label class="muted mb-2 block text-sm font-semibold">Email</label>
+                    <input id="loginEmail" type="email" required class="input-ui w-full rounded-2xl px-4 py-3" placeholder="name@example.com" />
+                </div>
+                <div>
+                    <label class="muted mb-2 block text-sm font-semibold">Password</label>
+                    <input id="loginPassword" type="password" required class="input-ui w-full rounded-2xl px-4 py-3" placeholder="Enter password" />
+                </div>
+                <button id="loginButton" type="submit" class="w-full rounded-2xl bg-blue-600 px-5 py-3 font-bold text-white">Sign In</button>
+            </form>
+
+            <div class="mt-4 text-center">
+                <button id="authThemeToggle" class="input-ui rounded-2xl px-4 py-3 text-sm font-semibold">Light</button>
+            </div>
+
+            <div class="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4 text-sm">
+                <div class="font-semibold">Access note</div>
+                <div class="muted mt-1">Only users created in Supabase Auth can access this system.</div>
+            </div>
+        </div>
+    </section>
+
+    <div id="appShell" class="mobile-safe-bottom hidden">
         <main class="max-w-7xl mx-auto px-3 pb-24 pt-4 sm:px-4 md:px-6 md:pb-28 md:pt-6 lg:px-8">
             <header class="mb-4 grid gap-4 lg:mb-6 lg:grid-cols-[1.25fr,0.75fr]">
                 <section class="glass rounded-[28px] p-4 sm:p-5 md:p-8">
@@ -148,12 +180,11 @@
                                 Supabase online mode
                             </div>
                             <h1 class="text-3xl font-extrabold tracking-tight md:text-5xl">Regulatory Compliance Dashboard</h1>
-                            <p class="muted mt-3 max-w-2xl text-sm md:text-base">
-                                A modern compliance tracker for Wafra Square with search, filters, status logic, add/edit/delete, auto expiry calculation, browser notifications, and JSON backup/import powered by Supabase.
-                            </p>
+                            <p class="muted mt-3 max-w-2xl text-sm md:text-base">A modern compliance tracker for Wafra Square with search, filters, secure login, status logic, add/edit/delete, auto expiry calculation, browser notifications, and JSON backup/import powered by Supabase.</p>
                         </div>
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-2 flex-wrap justify-end">
                             <button id="themeToggle" class="input-ui rounded-2xl px-4 py-3 text-sm font-semibold">Light</button>
+                            <button id="logoutButton" class="input-ui rounded-2xl px-4 py-3 text-sm font-semibold">Sign Out</button>
                             <button onclick="openModal()" class="rounded-2xl bg-white px-4 py-3 text-sm font-bold text-slate-900 shadow-lg">
                                 <span class="inline-flex items-center gap-2">
                                     <i data-lucide="plus" class="w-4 h-4 text-blue-600"></i>
@@ -161,6 +192,10 @@
                                 </span>
                             </button>
                         </div>
+                    </div>
+                    <div class="mt-4 flex flex-wrap items-center gap-3 text-sm">
+                        <span class="status-pill bg-emerald-500/10 text-emerald-300 border-emerald-400/20">Signed in</span>
+                        <span id="userEmailDisplay" class="muted"></span>
                     </div>
                     <div id="statsGrid" class="mt-5 grid gap-3 sm:grid-cols-2 md:grid-cols-4"></div>
                 </section>
@@ -236,7 +271,6 @@
             </section>
 
             <section id="alertsPanel" class="glass mb-4 rounded-[28px] p-4 sm:p-5 md:mb-6 md:p-5 hidden"></section>
-
             <section id="itemsGrid" class="grid gap-4 md:grid-cols-2 xl:grid-cols-3"></section>
         </main>
 
@@ -323,6 +357,7 @@
 
         let items = [];
         let darkMode = true;
+        let currentUser = null;
         const WARNING_DAYS = 30;
         const NOTIFICATION_SETTINGS_KEY = 'wafra_regulatory_notifications_v1';
         const NOTIFICATION_SENT_KEY = 'wafra_regulatory_notifications_sent_v1';
@@ -331,7 +366,11 @@
 
         function syncTheme() {
             document.body.classList.toggle('light-mode', !darkMode);
-            document.getElementById('themeToggle').textContent = darkMode ? 'Light' : 'Dark';
+            const themeText = darkMode ? 'Light' : 'Dark';
+            const themeBtn = document.getElementById('themeToggle');
+            const authThemeBtn = document.getElementById('authThemeToggle');
+            if (themeBtn) themeBtn.textContent = themeText;
+            if (authThemeBtn) authThemeBtn.textContent = themeText;
         }
 
         function showToast(message) {
@@ -339,7 +378,7 @@
             document.getElementById('toastText').textContent = message;
             toast.classList.remove('hidden');
             clearTimeout(showToast._t);
-            showToast._t = setTimeout(() => toast.classList.add('hidden'), 2200);
+            showToast._t = setTimeout(() => toast.classList.add('hidden'), 2400);
         }
 
         function getDelay(date) {
@@ -448,12 +487,7 @@
             if (!notificationSettings.enabled) return;
             if (!canUseBrowserNotifications() || Notification.permission !== 'granted') return;
 
-            const notice = new Notification(title, {
-                body,
-                tag,
-                renotify: false
-            });
-
+            const notice = new Notification(title, { body, tag, renotify: false });
             notice.onclick = () => {
                 window.focus();
                 notice.close();
@@ -475,6 +509,7 @@
         }
 
         function checkNotifications(force = false) {
+            if (!currentUser) return;
             if (!notificationSettings.enabled) return;
             if (!canUseBrowserNotifications() || Notification.permission !== 'granted') return;
 
@@ -532,6 +567,31 @@
                 expiringDate: row.expiring_date,
                 remarks: row.remarks
             };
+        }
+
+        function updateCurrentDate() {
+            const now = new Date();
+            const formatted = now.toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric'
+            });
+            const dateEl = document.getElementById('currentDate');
+            if (dateEl) dateEl.textContent = formatted;
+        }
+
+        function showAuthScreen() {
+            document.getElementById('authScreen').classList.remove('hidden');
+            document.getElementById('appShell').classList.add('hidden');
+            currentUser = null;
+        }
+
+        function showAppScreen(user) {
+            currentUser = user;
+            document.getElementById('authScreen').classList.add('hidden');
+            document.getElementById('appShell').classList.remove('hidden');
+            document.getElementById('userEmailDisplay').textContent = user?.email || '';
+            updateCurrentDate();
         }
 
         async function loadItemsFromSupabase() {
@@ -766,6 +826,43 @@
             await loadItemsFromSupabase();
         }
 
+        async function handleLogin(event) {
+            event.preventDefault();
+            const button = document.getElementById('loginButton');
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+
+            button.disabled = true;
+            button.textContent = 'Signing In...';
+
+            const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+            button.disabled = false;
+            button.textContent = 'Sign In';
+
+            if (error) {
+                console.error(error);
+                showToast(error.message || 'Login failed');
+                return;
+            }
+
+            document.getElementById('loginForm').reset();
+            showToast('Login successful');
+        }
+
+        async function handleLogout() {
+            const { error } = await supabaseClient.auth.signOut();
+            if (error) {
+                console.error(error);
+                showToast('Failed to sign out');
+                return;
+            }
+            items = [];
+            renderApp();
+            showAuthScreen();
+            showToast('Signed out');
+        }
+
         document.getElementById('regulationForm').addEventListener('submit', async function(e) {
             e.preventDefault();
 
@@ -845,8 +942,8 @@
                         sn: Number(item.sn) || index + 1,
                         item: item.item || '',
                         frequency: item.frequency || 'Annual',
-                        last_service_date: item.lastServiceDate || null,
-                        expiring_date: item.expiringDate || null,
+                        last_service_date: item.lastServiceDate && item.lastServiceDate !== 'NA' ? item.lastServiceDate : null,
+                        expiring_date: item.expiringDate && item.expiringDate !== 'NA' ? item.expiringDate : null,
                         remarks: item.remarks || ''
                     }));
 
@@ -885,30 +982,42 @@
             event.target.value = '';
         }
 
-        document.getElementById('themeToggle').addEventListener('click', () => {
-            darkMode = !darkMode;
-            syncTheme();
-            renderApp();
-        });
-
-        function updateCurrentDate() {
-            const now = new Date();
-            const formatted = now.toLocaleDateString('en-GB', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric'
-            });
-            const dateEl = document.getElementById('currentDate');
-            if (dateEl) dateEl.textContent = formatted;
+        async function handleSessionChange(session) {
+            if (!session?.user) {
+                showAuthScreen();
+                return;
+            }
+            showAppScreen(session.user);
+            await loadItemsFromSupabase();
         }
 
         document.addEventListener('DOMContentLoaded', async () => {
-            updateCurrentDate();
             syncTheme();
-            updateNotificationButton();
             lucide.createIcons();
-            await loadItemsFromSupabase();
-            checkNotifications(true);
+            updateNotificationButton();
+            updateCurrentDate();
+
+            document.getElementById('themeToggle').addEventListener('click', () => {
+                darkMode = !darkMode;
+                syncTheme();
+                renderApp();
+            });
+
+            document.getElementById('authThemeToggle').addEventListener('click', () => {
+                darkMode = !darkMode;
+                syncTheme();
+            });
+
+            document.getElementById('loginForm').addEventListener('submit', handleLogin);
+            document.getElementById('logoutButton').addEventListener('click', handleLogout);
+
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            await handleSessionChange(session);
+
+            supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+                await handleSessionChange(session);
+            });
+
             setInterval(checkNotifications, 60000);
         });
     </script>
