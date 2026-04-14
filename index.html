@@ -190,6 +190,14 @@
                             <i data-lucide="download" class="w-5 h-5 text-blue-400"></i>
                         </button>
 
+                        <button id="notificationToggle" onclick="toggleNotifications()" class="input-ui flex w-full items-center justify-between rounded-2xl px-4 py-4 text-left">
+                            <span>
+                                <div class="font-semibold">Enable notifications</div>
+                                <div id="notificationSubtext" class="muted mt-1 text-sm">Get alerts for overdue and expiring items</div>
+                            </span>
+                            <i data-lucide="bell" class="w-5 h-5 text-amber-400"></i>
+                        </button>
+
                         <div class="input-ui rounded-2xl px-4 py-4">
                             <div class="font-semibold">Current date</div>
                             <div id="currentDate" class="muted mt-1 text-sm"></div>
@@ -225,6 +233,8 @@
                     <button onclick="openModal()" class="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white">New Record</button>
                 </div>
             </section>
+
+            <section id="alertsPanel" class="glass mb-4 rounded-[28px] p-4 sm:p-5 md:mb-6 md:p-5 hidden"></section>
 
             <section id="itemsGrid" class="grid gap-4 md:grid-cols-2 xl:grid-cols-3"></section>
         </main>
@@ -307,6 +317,10 @@
         let items = JSON.parse(localStorage.getItem('wafra_regulatory_tracker_modern_v1') || '[]');
         let darkMode = true;
         const WARNING_DAYS = 30;
+        const NOTIFICATION_SETTINGS_KEY = 'wafra_regulatory_notifications_v1';
+        const NOTIFICATION_SENT_KEY = 'wafra_regulatory_notifications_sent_v1';
+        let notificationSettings = JSON.parse(localStorage.getItem(NOTIFICATION_SETTINGS_KEY) || '{"enabled":false}');
+        let notifiedItems = JSON.parse(localStorage.getItem(NOTIFICATION_SENT_KEY) || '{}');
 
         function syncTheme() {
             document.body.classList.toggle('light-mode', !darkMode);
@@ -353,6 +367,131 @@
             return { key: 'Healthy', label: 'Healthy', pill: 'bg-emerald-500/10 text-emerald-300 border-emerald-400/20', bar: 'linear-gradient(90deg, #34d399, #059669)' };
         }
 
+        function saveNotificationState() {
+            localStorage.setItem(NOTIFICATION_SETTINGS_KEY, JSON.stringify(notificationSettings));
+            localStorage.setItem(NOTIFICATION_SENT_KEY, JSON.stringify(notifiedItems));
+        }
+
+        function updateNotificationButton() {
+            const button = document.getElementById('notificationToggle');
+            const sub = document.getElementById('notificationSubtext');
+            if (!button || !sub) return;
+
+            if (!window.isSecureContext) {
+                button.querySelector('.font-semibold').textContent = 'Notifications need HTTPS';
+                sub.textContent = 'Browser notifications work only on HTTPS or localhost';
+                return;
+            }
+
+            if (!('Notification' in window)) {
+                button.querySelector('.font-semibold').textContent = 'Notifications unavailable';
+                sub.textContent = 'This browser does not support notifications';
+                return;
+            }
+
+            const permission = Notification.permission;
+            if (notificationSettings.enabled && permission === 'granted') {
+                button.querySelector('.font-semibold').textContent = 'Notifications enabled';
+                sub.textContent = `Alerts active for overdue and items expiring within ${WARNING_DAYS} days`;
+            } else if (permission === 'denied') {
+                button.querySelector('.font-semibold').textContent = 'Notifications blocked';
+                sub.textContent = 'Allow notifications in browser settings to receive alerts';
+            } else {
+                button.querySelector('.font-semibold').textContent = 'Enable notifications';
+                sub.textContent = 'Get alerts for overdue and expiring items';
+            }
+        }
+
+        async function toggleNotifications() {
+            if (!canUseBrowserNotifications()) {
+                showToast('Browser notifications need HTTPS or localhost, and notification support');
+                return;
+            }
+
+            if (Notification.permission === 'denied') {
+                showToast('Notifications are blocked in browser settings');
+                updateNotificationButton();
+                return;
+            }
+
+            if (!notificationSettings.enabled) {
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') {
+                    showToast('Notification permission was not granted');
+                    notificationSettings.enabled = false;
+                    saveNotificationState();
+                    updateNotificationButton();
+                    return;
+                }
+                notificationSettings.enabled = true;
+                saveNotificationState();
+                updateNotificationButton();
+                checkNotifications(true);
+                showToast('Notifications enabled');
+                return;
+            }
+
+            notificationSettings.enabled = false;
+            saveNotificationState();
+            updateNotificationButton();
+            showToast('Notifications disabled');
+        }
+
+        function sendBrowserNotification(title, body, tag) {
+            if (!notificationSettings.enabled) return;
+            if (!canUseBrowserNotifications() || Notification.permission !== 'granted') return;
+
+            const notice = new Notification(title, {
+                body,
+                tag,
+                renotify: false
+            });
+
+            notice.onclick = () => {
+                window.focus();
+                notice.close();
+            };
+        }
+
+        function cleanupNotifiedItems() {
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const fresh = {};
+            Object.entries(notifiedItems).forEach(([key, value]) => {
+                const d = new Date(value);
+                if (!isNaN(d.getTime()) && (today - d) / (1000 * 60 * 60 * 24) <= 7) {
+                    fresh[key] = value;
+                }
+            });
+            notifiedItems = fresh;
+            saveNotificationState();
+        }
+
+        function checkNotifications(force = false) {
+            if (!notificationSettings.enabled) return;
+            if (!canUseBrowserNotifications() || Notification.permission !== 'granted') return;
+
+            cleanupNotifiedItems();
+            const todayStamp = new Date().toISOString().slice(0, 10);
+
+            items.forEach(item => {
+                const status = getStatusMeta(item.expiringDate);
+                if (!item.item || (status.key !== 'Overdue' && status.key !== 'Expiring')) return;
+
+                const noticeKey = `${item.id}_${status.key}_${item.expiringDate || 'NA'}_${todayStamp}`;
+                if (!force && notifiedItems[noticeKey]) return;
+
+                const body = status.key === 'Overdue'
+                    ? `${item.item} is overdue. Expiry date: ${formatDisplayDate(item.expiringDate)}.`
+                    : `${item.item} is expiring soon on ${formatDisplayDate(item.expiringDate)}.`;
+
+                sendBrowserNotification('Compliance Alert', body, noticeKey);
+                notifiedItems[noticeKey] = new Date().toISOString();
+            });
+
+            saveNotificationState();
+        }
+
         function calculateExpiry() {
             const lastService = document.getElementById('formLastService').value;
             const frequency = document.getElementById('formFrequency').value;
@@ -375,6 +514,50 @@
         function saveLocal() {
             localStorage.setItem('wafra_regulatory_tracker_modern_v1', JSON.stringify(items));
             renderApp();
+            checkNotifications();
+        }
+
+        function canUseBrowserNotifications() {
+            return window.isSecureContext && ('Notification' in window);
+        }
+
+        function renderAlertsPanel(alertItems) {
+            const panel = document.getElementById('alertsPanel');
+            if (!panel) return;
+
+            if (!alertItems.length) {
+                panel.classList.add('hidden');
+                panel.innerHTML = '';
+                return;
+            }
+
+            panel.classList.remove('hidden');
+            panel.innerHTML = `
+                <div class="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                        <div class="muted text-xs font-semibold uppercase tracking-[0.22em]">Alerts</div>
+                        <div class="mt-1 text-xl font-bold">Upcoming and overdue compliance items</div>
+                    </div>
+                    <span class="status-pill bg-rose-500/10 text-rose-300 border-rose-400/20">${alertItems.length} alert${alertItems.length === 1 ? '' : 's'}</span>
+                </div>
+                <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    ${alertItems.map(item => {
+                        const status = getStatusMeta(item.expiringDate);
+                        const body = status.key === 'Overdue'
+                            ? `${item.item} is overdue. Expiry date: ${formatDisplayDate(item.expiringDate)}.`
+                            : `${item.item} expires on ${formatDisplayDate(item.expiringDate)}.`;
+                        return `
+                            <div class="rounded-2xl border border-white/10 bg-black/10 p-4">
+                                <div class="mb-2 flex items-center justify-between gap-3">
+                                    <div class="font-semibold">${item.item || 'Untitled item'}</div>
+                                    <span class="status-pill ${status.pill}">${status.key}</span>
+                                </div>
+                                <div class="muted text-sm">${body}</div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
         }
 
         function renderStat(title, value, icon, colorClass) {
@@ -408,6 +591,8 @@
                 return order[getStatusMeta(a.expiringDate).key] - order[getStatusMeta(b.expiringDate).key];
             });
 
+            const alertItems = items.filter(i => ['Overdue','Expiring'].includes(getStatusMeta(i.expiringDate).key));
+
             const stats = {
                 total: items.length,
                 overdue: items.filter(i => getStatusMeta(i.expiringDate).key === 'Overdue').length,
@@ -421,6 +606,8 @@
                 ${renderStat('Expiring (30d)', stats.expiring, 'clock-3', 'text-amber-400')}
                 ${renderStat('Healthy', stats.healthy, 'badge-check', 'text-emerald-400')}
             `;
+
+            renderAlertsPanel(alertItems);
 
             const grid = document.getElementById('itemsGrid');
             if (!filtered.length) {
@@ -469,6 +656,7 @@
             }).join('');
 
             updateQuickButtons(filter);
+            updateNotificationButton();
             lucide.createIcons();
         }
 
@@ -604,6 +792,9 @@
             document.getElementById('currentDate').textContent = new Date().toLocaleDateString('en-GB', { dateStyle: 'medium' });
             syncTheme();
             renderApp();
+            updateNotificationButton();
+            checkNotifications(true);
+            setInterval(checkNotifications, 60000);
             lucide.createIcons();
         };
     </script>
