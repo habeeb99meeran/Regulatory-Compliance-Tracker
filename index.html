@@ -6,6 +6,7 @@
     <title>Wafra Square - Regulatory Compliance Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
@@ -143,12 +144,12 @@
                     <div class="flex flex-wrap items-start justify-between gap-4">
                         <div>
                             <div class="mb-3 inline-flex items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-300">
-                                <i data-lucide="shield-check" class="w-4 h-4"></i>
-                                Offline local mode
+                                <i data-lucide="database" class="w-4 h-4"></i>
+                                Supabase online mode
                             </div>
                             <h1 class="text-3xl font-extrabold tracking-tight md:text-5xl">Regulatory Compliance Dashboard</h1>
                             <p class="muted mt-3 max-w-2xl text-sm md:text-base">
-                                A modern compliance tracker for Wafra Square with search, filters, status logic, add/edit/delete, auto expiry calculation, local storage, and JSON backup/import.
+                                A modern compliance tracker for Wafra Square with search, filters, status logic, add/edit/delete, auto expiry calculation, browser notifications, and JSON backup/import powered by Supabase.
                             </p>
                         </div>
                         <div class="flex items-center gap-2">
@@ -177,7 +178,7 @@
                         <button onclick="document.getElementById('importFile').click()" class="input-ui flex w-full items-center justify-between rounded-2xl px-4 py-4 text-left">
                             <span>
                                 <div class="font-semibold">Import backup</div>
-                                <div class="muted mt-1 text-sm">Load JSON data into local tracker</div>
+                                <div class="muted mt-1 text-sm">Replace all online records using a JSON backup</div>
                             </span>
                             <i data-lucide="upload" class="w-5 h-5 text-blue-400"></i>
                         </button>
@@ -185,7 +186,7 @@
                         <button onclick="exportData()" class="input-ui flex w-full items-center justify-between rounded-2xl px-4 py-4 text-left">
                             <span>
                                 <div class="font-semibold">Export backup</div>
-                                <div class="muted mt-1 text-sm">Save current records as JSON</div>
+                                <div class="muted mt-1 text-sm">Save current online records as JSON</div>
                             </span>
                             <i data-lucide="download" class="w-5 h-5 text-blue-400"></i>
                         </button>
@@ -314,7 +315,13 @@
     </div>
 
     <script>
-        let items = JSON.parse(localStorage.getItem('wafra_regulatory_tracker_modern_v1') || '[]');
+        const SUPABASE_URL = 'https://irfryahjlvgfmbjmpdje.supabase.co';
+        const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_DuMmB81SkD-1fnXZKXnvyA_N_JcKgE8';
+        const TABLE_NAME = 'compliance_items';
+
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+        let items = [];
         let darkMode = true;
         const WARNING_DAYS = 30;
         const NOTIFICATION_SETTINGS_KEY = 'wafra_regulatory_notifications_v1';
@@ -511,14 +518,39 @@
             expiryInput.value = `${year}-${month}-${day}`;
         }
 
-        function saveLocal() {
-            localStorage.setItem('wafra_regulatory_tracker_modern_v1', JSON.stringify(items));
-            renderApp();
-            checkNotifications();
-        }
-
         function canUseBrowserNotifications() {
             return window.isSecureContext && ('Notification' in window);
+        }
+
+        function mapRowToItem(row) {
+            return {
+                id: String(row.id),
+                sn: row.sn,
+                item: row.item,
+                frequency: row.frequency,
+                lastServiceDate: row.last_service_date,
+                expiringDate: row.expiring_date,
+                remarks: row.remarks
+            };
+        }
+
+        async function loadItemsFromSupabase() {
+            const { data, error } = await supabaseClient
+                .from(TABLE_NAME)
+                .select('*')
+                .order('sn', { ascending: true });
+
+            if (error) {
+                console.error('Error loading items:', error);
+                showToast('Failed to load database records');
+                items = [];
+                renderApp();
+                return;
+            }
+
+            items = (data || []).map(mapRowToItem);
+            renderApp();
+            checkNotifications();
         }
 
         function renderAlertsPanel(alertItems) {
@@ -576,9 +608,9 @@
         }
 
         function renderApp() {
-            const search = document.getElementById('searchInput').value.toLowerCase();
-            const filter = document.getElementById('filterSelect').value;
-            const sortBy = document.getElementById('sortSelect').value;
+            const search = document.getElementById('searchInput')?.value.toLowerCase() || '';
+            const filter = document.getElementById('filterSelect')?.value || 'All';
+            const sortBy = document.getElementById('sortSelect')?.value || 'status';
 
             let filtered = [...items].filter(i => (i.item || '').toLowerCase().includes(search));
             filtered = filtered.filter(i => filter === 'All' ? true : getStatusMeta(i.expiringDate).key === filter);
@@ -619,6 +651,7 @@
                     </div>
                 `;
                 updateQuickButtons(filter);
+                updateNotificationButton();
                 lucide.createIcons();
                 return;
             }
@@ -661,14 +694,9 @@
         }
 
         function updateQuickButtons(filter) {
-            const map = {
-                quickAll: ['All', 'bg-blue-500/10 text-blue-300'],
-                quickOverdue: ['Overdue', 'bg-rose-500/10 text-rose-300'],
-                quickExpiring: ['Expiring', 'bg-amber-500/10 text-amber-300']
-            };
-            Object.keys(map).forEach(id => {
+            ['quickAll', 'quickOverdue', 'quickExpiring'].forEach(id => {
                 const el = document.getElementById(id);
-                el.className = 'rounded-2xl px-2 py-3 text-[11px] font-semibold sm:px-4 sm:text-sm muted';
+                if (el) el.className = 'rounded-2xl px-2 py-3 text-[11px] font-semibold sm:px-4 sm:text-sm muted';
             });
             if (filter === 'All') document.getElementById('quickAll').className = 'rounded-2xl px-2 py-3 text-[11px] font-semibold sm:px-4 sm:text-sm bg-blue-500/10 text-blue-300';
             if (filter === 'Overdue') document.getElementById('quickOverdue').className = 'rounded-2xl px-2 py-3 text-[11px] font-semibold sm:px-4 sm:text-sm bg-rose-500/10 text-rose-300';
@@ -720,36 +748,71 @@
             lucide.createIcons();
         }
 
-        function deleteItem(id) {
+        async function deleteItem(id) {
             if (!confirm('Delete this record?')) return;
-            items = items.filter(i => i.id !== id);
-            saveLocal();
+
+            const { error } = await supabaseClient
+                .from(TABLE_NAME)
+                .delete()
+                .eq('id', Number(id));
+
+            if (error) {
+                console.error(error);
+                showToast('Failed to delete record');
+                return;
+            }
+
             showToast('Record deleted');
+            await loadItemsFromSupabase();
         }
 
-        document.getElementById('regulationForm').addEventListener('submit', function(e) {
+        document.getElementById('regulationForm').addEventListener('submit', async function(e) {
             e.preventDefault();
+
             const id = document.getElementById('editId').value;
             const payload = {
-                item: document.getElementById('formItem').value,
+                item: document.getElementById('formItem').value.trim(),
                 frequency: document.getElementById('formFrequency').value,
-                lastServiceDate: document.getElementById('formLastService').value,
-                expiringDate: document.getElementById('formExpiry').value,
-                remarks: document.getElementById('formRemarks').value
+                last_service_date: document.getElementById('formLastService').value || null,
+                expiring_date: document.getElementById('formExpiry').value || null,
+                remarks: document.getElementById('formRemarks').value.trim()
             };
 
+            if (!payload.item) {
+                showToast('Item name is required');
+                return;
+            }
+
             if (id) {
-                const idx = items.findIndex(i => i.id === id);
-                if (idx !== -1) items[idx] = { ...items[idx], ...payload };
+                const { error } = await supabaseClient
+                    .from(TABLE_NAME)
+                    .update(payload)
+                    .eq('id', Number(id));
+
+                if (error) {
+                    console.error(error);
+                    showToast('Failed to update record');
+                    return;
+                }
+
                 showToast('Record updated');
             } else {
                 const nextSn = items.length > 0 ? Math.max(...items.map(i => Number(i.sn) || 0)) + 1 : 1;
-                items.push({ ...payload, sn: nextSn, id: Date.now().toString() });
+                const { error } = await supabaseClient
+                    .from(TABLE_NAME)
+                    .insert([{ ...payload, sn: nextSn }]);
+
+                if (error) {
+                    console.error(error);
+                    showToast('Failed to add record');
+                    return;
+                }
+
                 showToast('Record added');
             }
 
-            saveLocal();
             closeModal();
+            await loadItemsFromSupabase();
         });
 
         function exportData() {
@@ -763,21 +826,61 @@
             showToast('Backup exported');
         }
 
-        function handleImport(event) {
+        async function handleImport(event) {
             const file = event.target.files[0];
             if (!file) return;
+
+            if (!confirm('This will replace all current online records with the JSON file data. Continue?')) {
+                event.target.value = '';
+                return;
+            }
+
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
                 try {
                     const imported = JSON.parse(e.target.result);
-                    if (!Array.isArray(imported)) throw new Error('Invalid');
-                    items = imported;
-                    saveLocal();
+                    if (!Array.isArray(imported)) throw new Error('Invalid JSON');
+
+                    const rows = imported.map((item, index) => ({
+                        sn: Number(item.sn) || index + 1,
+                        item: item.item || '',
+                        frequency: item.frequency || 'Annual',
+                        last_service_date: item.lastServiceDate || null,
+                        expiring_date: item.expiringDate || null,
+                        remarks: item.remarks || ''
+                    }));
+
+                    const { error: deleteError } = await supabaseClient
+                        .from(TABLE_NAME)
+                        .delete()
+                        .neq('id', 0);
+
+                    if (deleteError) {
+                        console.error(deleteError);
+                        showToast('Failed to clear old records');
+                        return;
+                    }
+
+                    if (rows.length) {
+                        const { error: insertError } = await supabaseClient
+                            .from(TABLE_NAME)
+                            .insert(rows);
+
+                        if (insertError) {
+                            console.error(insertError);
+                            showToast('Import failed');
+                            return;
+                        }
+                    }
+
                     showToast('Backup imported');
+                    await loadItemsFromSupabase();
                 } catch (err) {
+                    console.error(err);
                     showToast('Invalid JSON file');
                 }
             };
+
             reader.readAsText(file);
             event.target.value = '';
         }
@@ -788,15 +891,26 @@
             renderApp();
         });
 
-        window.onload = () => {
-            document.getElementById('currentDate').textContent = new Date().toLocaleDateString('en-GB', { dateStyle: 'medium' });
+        function updateCurrentDate() {
+            const now = new Date();
+            const formatted = now.toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric'
+            });
+            const dateEl = document.getElementById('currentDate');
+            if (dateEl) dateEl.textContent = formatted;
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            updateCurrentDate();
             syncTheme();
-            renderApp();
             updateNotificationButton();
+            lucide.createIcons();
+            await loadItemsFromSupabase();
             checkNotifications(true);
             setInterval(checkNotifications, 60000);
-            lucide.createIcons();
-        };
+        });
     </script>
 </body>
 </html>
