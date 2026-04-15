@@ -784,17 +784,22 @@
         }
 
         function openModal() {
-            document.getElementById('regulationForm').reset();
-            document.getElementById('editId').value = '';
-            document.getElementById('editSn').value = '';
-            document.getElementById('modalLabel').textContent = 'New entry';
-            document.getElementById('modalTitle').textContent = 'Create compliance item';
+            closeModal();
             document.getElementById('modal').classList.remove('hidden');
             document.getElementById('modal').classList.add('flex');
             lucide.createIcons();
         }
 
         function closeModal() {
+            document.getElementById('regulationForm').reset();
+            document.getElementById('editId').value = '';
+            document.getElementById('editSn').value = '';
+            document.getElementById('formFrequency').value = 'Annual';
+            document.getElementById('formLastService').value = '';
+            document.getElementById('formExpiry').value = '';
+            document.getElementById('formRemarks').value = '';
+            document.getElementById('modalLabel').textContent = 'New entry';
+            document.getElementById('modalTitle').textContent = 'Create compliance item';
             document.getElementById('modal').classList.add('hidden');
             document.getElementById('modal').classList.remove('flex');
         }
@@ -819,19 +824,50 @@
         async function deleteItem(id) {
             if (!confirm('Delete this record?')) return;
 
-            const { error } = await supabaseClient
-                .from(TABLE_NAME)
-                .delete()
-                .eq('id', Number(id));
+            try {
+                const numericId = Number(id);
 
-            if (error) {
-                console.error(error);
-                showToast('Failed to delete record');
-                return;
+                if (!numericId) {
+                    showToast('Invalid record id');
+                    return;
+                }
+
+                const { data: existingRow, error: fetchError } = await supabaseClient
+                    .from(TABLE_NAME)
+                    .select('id')
+                    .eq('id', numericId)
+                    .single();
+
+                if (fetchError || !existingRow) {
+                    console.error('Fetch before delete error:', fetchError);
+                    showToast('Record not found. Please refresh once.');
+                    return;
+                }
+
+                const { data, error } = await supabaseClient
+                    .from(TABLE_NAME)
+                    .delete()
+                    .eq('id', numericId)
+                    .select();
+
+                if (error) {
+                    console.error('Delete error:', error);
+                    showToast(error.message || 'Delete failed');
+                    return;
+                }
+
+                if (!data || data.length === 0) {
+                    showToast('Delete not allowed or record not found');
+                    return;
+                }
+
+                closeModal();
+                await loadItemsFromSupabase();
+                showToast('Record deleted');
+            } catch (err) {
+                console.error('Delete exception:', err);
+                showToast('Delete failed');
             }
-
-            showToast('Record deleted');
-            await loadItemsFromSupabase();
         }
 
         async function handleLogin(event) {
@@ -888,36 +924,38 @@
                 return;
             }
 
-            if (id) {
-                const { error } = await supabaseClient
-                    .from(TABLE_NAME)
-                    .update(payload)
-                    .eq('id', Number(id));
+            try {
+                if (id) {
+                    const { data, error } = await supabaseClient
+                        .from(TABLE_NAME)
+                        .update(payload)
+                        .eq('id', Number(id))
+                        .select();
 
-                if (error) {
-                    console.error(error);
-                    showToast('Failed to update record');
-                    return;
+                    if (error) throw error;
+                    if (!data || data.length === 0) throw new Error('Update did not return any row');
+
+                    showToast('Record updated');
+                } else {
+                    const nextSn = items.length > 0 ? Math.max(...items.map(i => Number(i.sn) || 0)) + 1 : 1;
+
+                    const { data, error } = await supabaseClient
+                        .from(TABLE_NAME)
+                        .insert([{ ...payload, sn: nextSn }])
+                        .select();
+
+                    if (error) throw error;
+                    if (!data || data.length === 0) throw new Error('Insert did not return any row');
+
+                    showToast('Record added');
                 }
 
-                showToast('Record updated');
-            } else {
-                const nextSn = items.length > 0 ? Math.max(...items.map(i => Number(i.sn) || 0)) + 1 : 1;
-                const { error } = await supabaseClient
-                    .from(TABLE_NAME)
-                    .insert([{ ...payload, sn: nextSn }]);
-
-                if (error) {
-                    console.error(error);
-                    showToast('Failed to add record');
-                    return;
-                }
-
-                showToast('Record added');
+                closeModal();
+                await loadItemsFromSupabase();
+            } catch (err) {
+                console.error('Save error:', err);
+                showToast(err.message || 'Record save failed');
             }
-
-            closeModal();
-            await loadItemsFromSupabase();
         });
 
         function exportData() {
